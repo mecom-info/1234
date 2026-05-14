@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no" />
+<meta name="theme-color" content="#0e0f12" />
+<link rel="manifest" href="/manifest.json" />
+<link rel="icon" href="/icon.svg" />
+<title>Glossa — учи термины</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  :root{
+    --bg:#0e0f12; --bg-2:#16181d; --bg-3:#1f232b;
+    --fg:#e7e9ee; --fg-dim:#8a92a3; --fg-mute:#5b6273;
+    --line:#262a33; --accent:#5eead4; --accent-2:#22d3ee;
+    --good:#34d399; --bad:#f87171; --warn:#fbbf24;
+    --radius:18px; --radius-sm:12px;
+    --safe-top:env(safe-area-inset-top); --safe-bot:env(safe-area-inset-bottom);
+    --tab-h:64px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+  }
+  [data-theme="light"]{--bg:#fafaf7;--bg-2:#fff;--bg-3:#f0f0ea;--fg:#15181e;--fg-dim:#5a6273;--fg-mute:#8a92a3;--line:#e6e6df;--accent:#0d9488;--accent-2:#0891b2}
+  [data-theme="forest"]{--bg:#0b1410;--bg-2:#11201a;--bg-3:#1a2e25;--fg:#e6f3ec;--fg-dim:#88a99a;--fg-mute:#5a7567;--line:#1f3a30;--accent:#86efac;--accent-2:#4ade80}
+  [data-theme="neon"]{--bg:#0a0413;--bg-2:#160b25;--bg-3:#221038;--fg:#f3e8ff;--fg-dim:#b89dd9;--fg-mute:#7a6195;--line:#2c1647;--accent:#e879f9;--accent-2:#a855f7}
+
+  html,body{height:100%;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.4;overscroll-behavior-y:none}
+  body{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+  button,input,textarea,select{font:inherit;color:inherit}
+  button{background:none;border:none;cursor:pointer}
+  input,textarea{width:100%;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px 14px;color:var(--fg);outline:none;transition:border-color .15s}
+  input:focus,textarea:focus{border-color:var(--accent)}
+  textarea{min-height:80px;resize:vertical;font-family:var(--font)}
+  ::placeholder{color:var(--fg-mute)}
+  ::selection{background:var(--accent);color:var(--bg)}
+
+  /* Screens */
+  .screen{display:none;flex:1;flex-direction:column;min-height:0}
+  .screen.active{display:flex}
+
+  /* Landing */
+  #landing{padding:calc(var(--safe-top) + 24px) 20px calc(var(--safe-bot) + 24px);justify-content:space-between;gap:16px}
+  .brand{padding:24px 4px 8px}
+  .brand h1{font-size:42px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .brand p{color:var(--fg-dim);margin-top:6px;font-size:15px}
+  .land-actions{display:flex;flex-direction:column;gap:14px}
+  .land-btn{padding:28px 22px;border-radius:24px;text-align:left;font-size:20px;font-weight:600;border:1px solid var(--line);background:var(--bg-2);transition:transform .15s,background .15s}
+  .land-btn:active{transform:scale(.98)}
+  .land-btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#06251f;border:none}
+  .land-btn small{display:block;margin-top:6px;font-weight:400;font-size:13px;opacity:.7}
+
+  /* App layout */
+  #app{padding-top:var(--safe-top)}
+  .tab-content{flex:1;overflow-y:auto;padding:20px 18px calc(var(--tab-h) + var(--safe-bot) + 24px);-webkit-overflow-scrolling:touch}
+  .tab-content::-webkit-scrollbar{display:none}
+  .h-title{font-size:24px;font-weight:700;margin-bottom:18px;letter-spacing:-.3px}
+
+  /* Tab Bar */
+  .tabbar{position:fixed;bottom:0;left:0;right:0;height:calc(var(--tab-h) + var(--safe-bot));padding-bottom:var(--safe-bot);background:var(--bg-2);border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:stretch;z-index:50}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--fg-mute);font-size:11px;font-weight:500;transition:color .15s}
+  .tab svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .tab.active{color:var(--accent)}
+
+  /* Forms */
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:13px;color:var(--fg-dim);margin-bottom:6px;padding-left:4px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 18px;border-radius:14px;background:var(--bg-2);border:1px solid var(--line);font-weight:600;font-size:15px;width:100%;transition:transform .1s,background .15s}
+  .btn:active{transform:scale(.98)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#06251f;border:none}
+  .btn.danger{color:var(--bad);border-color:#3a1f24}
+  .btn-row{display:flex;gap:10px}
+  .toast{position:fixed;left:50%;bottom:calc(var(--tab-h) + var(--safe-bot) + 16px);transform:translateX(-50%) translateY(20px);background:var(--bg-3);color:var(--fg);padding:12px 18px;border-radius:14px;font-size:14px;box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;transition:.25s;pointer-events:none;z-index:200;border:1px solid var(--line)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* Cards stack */
+  .deck{position:relative;height:62vh;max-height:520px;margin:8px 4px 18px;perspective:1200px}
+  .swipe-card{position:absolute;inset:0;background:var(--bg-2);border:1px solid var(--line);border-radius:24px;padding:24px;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.35);will-change:transform,opacity;touch-action:pan-y;user-select:none;transform-style:preserve-3d}
+  .swipe-card .face{position:absolute;inset:24px;display:flex;flex-direction:column;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+  .swipe-card .face.back{transform:rotateY(180deg);overflow-y:auto}
+  .swipe-card.flipped{transform:rotateY(180deg) !important}
+  .term-big{font-size:32px;font-weight:700;letter-spacing:-.5px;margin:auto 0;text-align:center;line-height:1.2}
+  .hint{position:absolute;bottom:16px;left:0;right:0;text-align:center;font-size:12px;color:var(--fg-mute)}
+  .meta-row{margin-bottom:14px}
+  .meta-row .lbl{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--fg-mute);margin-bottom:4px}
+  .meta-row .val{font-size:15px;color:var(--fg);white-space:pre-wrap}
+  .badge-good,.badge-bad{position:absolute;top:24px;padding:8px 14px;border-radius:10px;font-weight:800;font-size:18px;border:3px solid;opacity:0;transform:scale(.8);transition:opacity .1s}
+  .badge-good{right:24px;color:var(--good);border-color:var(--good);transform:rotate(15deg) scale(.8)}
+  .badge-bad{left:24px;color:var(--bad);border-color:var(--bad);transform:rotate(-15deg) scale(.8)}
+  .counter{text-align:center;color:var(--fg-dim);font-size:14px;margin-bottom:8px}
+  .empty{text-align:center;padding:40px 20px;color:var(--fg-dim)}
+  .empty h3{color:var(--fg);margin-bottom:8px;font-size:18px}
+  .empty p{margin-bottom:18px;font-size:14px}
+
+  /* Collection list */
+  .search-row{display:flex;gap:8px;margin-bottom:12px}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:8px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{padding:8px 14px;background:var(--bg-2);border:1px solid var(--line);border-radius:99px;font-size:13px;white-space:nowrap;color:var(--fg-dim)}
+  .chip.active{background:var(--accent);color:#06251f;border-color:var(--accent);font-weight:600}
+  .item{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start}
+  .item .dot{width:8px;height:8px;border-radius:50%;margin-top:7px;flex-shrink:0}
+  .dot.learning{background:var(--warn)}
+  .dot.learned{background:var(--good)}
+  .item .body{flex:1;min-width:0}
+  .item .term{font-weight:600;font-size:16px;margin-bottom:3px}
+  .item .def{color:var(--fg-dim);font-size:13px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .item .src{color:var(--fg-mute);font-size:12px;margin-top:4px}
+
+  /* Profile */
+  .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+  .stat{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--radius);padding:14px;text-align:center}
+  .stat .n{font-size:24px;font-weight:700;color:var(--accent)}
+  .stat .l{font-size:11px;color:var(--fg-dim);margin-top:2px}
+  .card-block{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+  .card-block h4{font-size:14px;color:var(--fg-dim);margin-bottom:10px;font-weight:500}
+  .progress{height:8px;background:var(--bg-3);border-radius:99px;overflow:hidden;margin-top:10px}
+  .progress > div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .4s}
+  .streak{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:600}
+  .themes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+  .theme-btn{aspect-ratio:1;border-radius:14px;border:2px solid var(--line);font-size:11px;color:var(--fg-dim);transition:.15s;display:flex;align-items:flex-end;justify-content:center;padding:6px}
+  .theme-btn.active{border-color:var(--accent);color:var(--accent)}
+
+  /* Modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center;z-index:300;padding:0}
+  .modal-overlay.show{display:flex;animation:fade .2s}
+  .modal{background:var(--bg-2);border-radius:24px 24px 0 0;width:100%;max-width:520px;padding:22px 20px calc(var(--safe-bot) + 22px);max-height:90vh;overflow-y:auto;animation:slideUp .25s}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  @keyframes slideUp{from{transform:translateY(40px)}to{transform:none}}
+  .modal h3{margin-bottom:14px;font-size:18px}
+
+  /* Confetti */
+  #confetti{position:fixed;inset:0;pointer-events:none;z-index:400}
+
+  /* Step indicator (onboarding) */
+  .onb-dots{display:flex;justify-content:center;gap:8px;margin:16px}
+  .onb-dots span{width:8px;height:8px;border-radius:50%;background:var(--bg-3)}
+  .onb-dots span.active{background:var(--accent);width:24px;border-radius:99px;transition:.2s}
+
+  .install-note{font-size:13px;color:var(--fg-dim);line-height:1.6}
+  .install-note code{background:var(--bg-3);padding:2px 6px;border-radius:6px;font-size:12px}
+</style>
+</head>
+<body>
+
+<!-- LANDING -->
+<section id="landing" class="screen active">
+  <div class="brand">
+    <h1>Glossa</h1>
+    <p>Учи и запоминай слова, термины, понятия.</p>
+  </div>
+  <div class="land-actions">
+    <button class="land-btn primary" id="btnStart">
+      Начать работу
+      <small>Открыть коллекцию и продолжить изучение</small>
+    </button>
+    <button class="land-btn" id="btnFinish">
+      Закончить работу
+      <small>Сохранить glossa.md на устройство</small>
+    </button>
+  </div>
+</section>
+
+<!-- APP -->
+<section id="app" class="screen">
+  <!-- Tab: Add -->
+  <div class="tab-content" data-tab="add">
+    <h2 class="h-title">Добавить термин</h2>
+    <div class="field"><label>Термин *</label><input id="f-term" placeholder="например: serendipity" /></div>
+    <div class="field"><label>Определение</label><textarea id="f-def" placeholder="Официальное определение"></textarea></div>
+    <div class="field"><label>Моё определение</label><textarea id="f-mine" placeholder="Своими словами"></textarea></div>
+    <div class="field"><label>Контекст</label><textarea id="f-ctx" placeholder="Пример употребления"></textarea></div>
+    <div class="field"><label>Источник</label><input id="f-src" placeholder="Книга, фильм, статья" /></div>
+    <button class="btn primary" id="btnSave">Сохранить</button>
+  </div>
+
+  <!-- Tab: Learn -->
+  <div class="tab-content" data-tab="learn" style="display:none">
+    <h2 class="h-title">Учить</h2>
+    <div class="counter" id="counter">Осталось 0 из 0</div>
+    <div class="deck" id="deck"></div>
+    <div class="empty" id="learnEmpty" style="display:none">
+      <h3>Пока нечего учить</h3>
+      <p>Добавь термины, чтобы начать.</p>
+      <button class="btn primary" onclick="switchTab('add')">Добавить термины</button>
+    </div>
+  </div>
+
+  <!-- Tab: Collection -->
+  <div class="tab-content" data-tab="collection" style="display:none">
+    <h2 class="h-title">Коллекция</h2>
+    <div class="search-row"><input id="search" placeholder="Поиск…" /></div>
+    <div class="chips" id="filters">
+      <div class="chip active" data-f="all">Все</div>
+      <div class="chip" data-f="learning">Учу</div>
+      <div class="chip" data-f="learned">Выучено</div>
+    </div>
+    <div class="chips" id="srcFilters"></div>
+    <div id="list"></div>
+    <div class="empty" id="collEmpty" style="display:none">
+      <h3>Пусто</h3><p>Здесь появятся твои термины.</p>
+    </div>
+  </div>
+
+  <!-- Tab: Profile -->
+  <div class="tab-content" data-tab="profile" style="display:none">
+    <h2 class="h-title">Профиль</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="n" id="stTotal">0</div><div class="l">Всего</div></div>
+      <div class="stat"><div class="n" id="stLearned">0</div><div class="l">Выучено</div></div>
+      <div class="stat"><div class="n" id="stLearning">0</div><div class="l">Учу</div></div>
+    </div>
+
+    <div class="card-block">
+      <h4>Серия дней</h4>
+      <div class="streak" id="streak">🌱 0 дней</div>
+    </div>
+
+    <div class="card-block">
+      <h4>Цель на день</h4>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input id="dailyGoal" type="number" min="1" max="200" style="width:80px;text-align:center" />
+        <span style="color:var(--fg-dim);font-size:14px">терминов</span>
+      </div>
+      <div class="progress"><div id="goalBar" style="width:0%"></div></div>
+      <div style="font-size:12px;color:var(--fg-dim);margin-top:6px" id="goalText">0 из 0 сегодня</div>
+    </div>
+
+    <div class="card-block">
+      <h4>Тема оформления</h4>
+      <div class="themes" id="themes">
+        <button class="theme-btn" data-theme="dark" style="background:#0e0f12;color:#5eead4">Тёмная</button>
+        <button class="theme-btn" data-theme="light" style="background:#fafaf7;color:#0d9488">Светлая</button>
+        <button class="theme-btn" data-theme="forest" style="background:#0b1410;color:#86efac">Лесная</button>
+        <button class="theme-btn" data-theme="neon" style="background:#0a0413;color:#e879f9">Неон</button>
+      </div>
+    </div>
+
+    <div class="card-block">
+      <h4>Действия</h4>
+      <button class="btn" id="btnRemind" style="margin-bottom:8px">🔔 Напоминания</button>
+      <button class="btn" id="btnShare" style="margin-bottom:8px">📤 Поделиться коллекцией</button>
+      <button class="btn" id="btnImport" style="margin-bottom:8px">📥 Загрузить коллекцию</button>
+      <input type="file" id="fileInput" accept=".md,.markdown,text/markdown,text/plain" style="display:none" />
+      <button class="btn danger" id="btnClear">🗑 Очистить всё</button>
+    </div>
+
+    <div class="card-block">
+      <h4>Как сохранить на экран</h4>
+      <div class="install-note">
+        <p><b>iPhone (Safari):</b> кнопка «Поделиться» → «На экран Домой».</p>
+        <p style="margin-top:6px"><b>Android (Chrome):</b> меню <code>⋮</code> → «Установить приложение».</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Bar -->
+  <nav class="tabbar">
+    <button class="tab active" data-tab="add"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>Добавить</span></button>
+    <button class="tab" data-tab="learn"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h16"/></svg><span>Учить</span></button>
+    <button class="tab" data-tab="collection"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M10 4v16"/></svg><span>Коллекция</span></button>
+    <button class="tab" data-tab="profile"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg><span>Профиль</span></button>
+    <button class="tab" id="tabFinish"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg><span>Закончить</span></button>
+  </nav>
+</section>
+
+<!-- Onboarding -->
+<div class="modal-overlay" id="onbModal">
+  <div class="modal">
+    <h3 id="onbTitle">Добро пожаловать в Glossa</h3>
+    <p id="onbBody" style="color:var(--fg-dim);min-height:80px">Записывай слова и термины из книг, фильмов, работы — всё в одном месте.</p>
+    <div class="onb-dots"><span class="active"></span><span></span><span></span></div>
+    <button class="btn primary" id="onbNext">Дальше</button>
+  </div>
+</div>
+
+<!-- Edit modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>Редактировать</h3>
+    <div class="field"><label>Термин</label><input id="e-term" /></div>
+    <div class="field"><label>Определение</label><textarea id="e-def"></textarea></div>
+    <div class="field"><label>Моё определение</label><textarea id="e-mine"></textarea></div>
+    <div class="field"><label>Контекст</label><textarea id="e-ctx"></textarea></div>
+    <div class="field"><label>Источник</label><input id="e-src" /></div>
+    <div class="field"><label>Статус</label>
+      <select id="e-status" style="width:100%;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px">
+        <option value="learning">Учу</option><option value="learned">Выучено</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn danger" id="btnDelete">Удалить</button>
+      <button class="btn primary" id="btnUpdate">Сохранить</button>
+    </div>
+    <button class="btn" id="btnCloseEdit" style="margin-top:8px">Отмена</button>
+  </div>
+</div>
+
+<canvas id="confetti"></canvas>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+/* ============ Telegram WebApp ============ */
+const tg = window.Telegram?.WebApp;
+if (tg) { try { tg.ready(); tg.expand(); tg.setHeaderColor?.('#0e0f12'); } catch(e){} }
+
+/* ============ IndexedDB ============ */
+const DB_NAME = 'glossa', DB_VER = 1;
+let db;
+function openDB(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, DB_VER);
+    r.onupgradeneeded = (e) => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('terms')) {
+        const s = d.createObjectStore('terms', { keyPath:'id', autoIncrement:true });
+        s.createIndex('status','status'); s.createIndex('source','source');
+      }
+      if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings', { keyPath:'key' });
+      if (!d.objectStoreNames.contains('activity')) d.createObjectStore('activity', { keyPath:'date' });
+    };
+    r.onsuccess = () => { db = r.result; res(db); };
+    r.onerror = () => rej(r.error);
+  });
+}
+function tx(store, mode='readonly'){ return db.transaction(store, mode).objectStore(store); }
+function pq(req){ return new Promise((res,rej)=>{ req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); }); }
+
+const Terms = {
+  all: () => pq(tx('terms').getAll()),
+  add: (t) => pq(tx('terms','readwrite').add(t)),
+  put: (t) => pq(tx('terms','readwrite').put(t)),
+  del: (id) => pq(tx('terms','readwrite').delete(id)),
+  clear: () => pq(tx('terms','readwrite').clear()),
+};
+const Settings = {
+  get: async (k, def) => { const r = await pq(tx('settings').get(k)); return r ? r.value : def; },
+  set: (k, value) => pq(tx('settings','readwrite').put({ key:k, value })),
+};
+const Activity = {
+  bump: async () => {
+    const date = new Date().toISOString().slice(0,10);
+    const cur = await pq(tx('activity').get(date));
+    await pq(tx('activity','readwrite').put({ date, count: (cur?.count||0)+1 }));
+  },
+  todayCount: async () => {
+    const date = new Date().toISOString().slice(0,10);
+    const r = await pq(tx('activity').get(date));
+    return r?.count || 0;
+  },
+  streak: async () => {
+    const all = await pq(tx('activity').getAll());
+    const dates = new Set(all.filter(a=>a.count>0).map(a=>a.date));
+    let s = 0; const d = new Date();
+    while(dates.has(d.toISOString().slice(0,10))){ s++; d.setDate(d.getDate()-1); }
+    return s;
+  }
+};
+
+/* ============ Helpers / UI ============ */
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove('show'), 1800); }
+function vibrate(p){ try{ navigator.vibrate?.(p); tg?.HapticFeedback?.impactOccurred?.('light'); }catch(e){} }
+
+/* Audio */
+let audioCtx;
+function beep(freq=440, dur=0.08, type='sine', vol=0.08){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.value = vol;
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  }catch(e){}
+}
+const SFX = {
+  good: () => { beep(660,.07,'triangle'); setTimeout(()=>beep(880,.09,'triangle'), 60); },
+  bad:  () => { beep(220,.12,'sawtooth',.06); },
+  flip: () => { beep(520,.04,'sine',.05); },
+  done: () => { [523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,.12,'triangle'), i*90)); },
+};
+
+/* ============ Navigation ============ */
+function show(id){ $$('.screen').forEach(s=>s.classList.remove('active')); $('#'+id).classList.add('active'); }
+function switchTab(name){
+  $$('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  $$('[data-tab]').forEach(el=>{ if(el.classList.contains('tab-content')) el.style.display = (el.dataset.tab===name?'':'none'); });
+  if (name==='learn') startLearn();
+  if (name==='collection') renderCollection();
+  if (name==='profile') renderProfile();
+}
+window.switchTab = switchTab;
+$$('.tab').forEach(b=>b.addEventListener('click', ()=>switchTab(b.dataset.tab)));
+
+/* ============ Landing ============ */
+$('#btnStart').addEventListener('click', async () => {
+  show('app');
+  const seen = await Settings.get('onboarded', false);
+  if (!seen) showOnboarding();
+  switchTab('add');
+});
+$('#btnFinish').addEventListener('click', async () => {
+  await exportMarkdown();
+  show('landing');
+});
+
+/* ============ Onboarding ============ */
+const onbSteps = [
+  { t:'Добро пожаловать в Glossa', b:'Записывай слова и термины из книг, фильмов, работы — всё в одном месте.' },
+  { t:'Учи свайпами', b:'Свайп вправо — знаю. Влево — повторим позже. Тап по карточке — переворот.' },
+  { t:'Всё с тобой', b:'Данные хранятся на устройстве. Экспорт в Markdown — для Obsidian, Notion и других.' },
+];
+let onbI = 0;
+function showOnboarding(){ onbI = 0; renderOnb(); $('#onbModal').classList.add('show'); }
+function renderOnb(){
+  const s = onbSteps[onbI];
+  $('#onbTitle').textContent = s.t; $('#onbBody').textContent = s.b;
+  $$('#onbModal .onb-dots span').forEach((d,i)=>d.classList.toggle('active', i===onbI));
+  $('#onbNext').textContent = onbI === onbSteps.length-1 ? 'Поехали' : 'Дальше';
+}
+$('#onbNext').addEventListener('click', async () => {
+  if (onbI < onbSteps.length-1){ onbI++; renderOnb(); }
+  else { $('#onbModal').classList.remove('show'); await Settings.set('onboarded', true); }
+});
+
+/* ============ ADD ============ */
+$('#btnSave').addEventListener('click', async () => {
+  const term = $('#f-term').value.trim();
+  if (!term) { toast('Введи термин'); return; }
+  await Terms.add({
+    term,
+    definition: $('#f-def').value.trim(),
+    mine: $('#f-mine').value.trim(),
+    context: $('#f-ctx').value.trim(),
+    source: $('#f-src').value.trim(),
+    status: 'learning',
+    addedAt: new Date().toISOString().slice(0,10),
+  });
+  ['#f-term','#f-def','#f-mine','#f-ctx','#f-src'].forEach(s=>$(s).value='');
+  vibrate(15); SFX.good(); toast('Сохранено');
+});
+
+/* ============ LEARN (swipe deck) ============ */
+let queue = [], current = null;
+async function startLearn(){
+  const all = await Terms.all();
+  queue = all.filter(t => t.status === 'learning');
+  // shuffle
+  for (let i=queue.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [queue[i],queue[j]]=[queue[j],queue[i]]; }
+  $('#learnEmpty').style.display = queue.length ? 'none' : 'block';
+  $('#deck').style.display = queue.length ? 'block' : 'none';
+  $('#counter').style.display = queue.length ? 'block' : 'none';
+  if (queue.length) renderTopCard();
+  updateCounter();
+}
+function updateCounter(){
+  const total = queue.length + (current?1:0);
+  const remaining = queue.length + (current?1:0);
+  $('#counter').textContent = `Осталось ${remaining}`;
+}
+function renderTopCard(){
+  const deck = $('#deck'); deck.innerHTML='';
+  current = queue.shift();
+  if (!current){ finishedDeck(); return; }
+  const card = document.createElement('div');
+  card.className = 'swipe-card';
+  card.innerHTML = `
+    <div class="badge-good">ЗНАЮ</div>
+    <div class="badge-bad">ПОТОМ</div>
+    <div class="face front">
+      <div class="term-big">${escapeHtml(current.term)}</div>
+      <div class="hint">тап — перевернуть · свайп → знаю · ← потом</div>
+    </div>
+    <div class="face back">
+      ${current.definition?`<div class="meta-row"><div class="lbl">📖 Определение</div><div class="val">${escapeHtml(current.definition)}</div></div>`:''}
+      ${current.mine?`<div class="meta-row"><div class="lbl">✍️ Моё</div><div class="val">${escapeHtml(current.mine)}</div></div>`:''}
+      ${current.context?`<div class="meta-row"><div class="lbl">💬 Контекст</div><div class="val">${escapeHtml(current.context)}</div></div>`:''}
+      ${current.source?`<div class="meta-row"><div class="lbl">📚 Источник</div><div class="val">${escapeHtml(current.source)}</div></div>`:''}
+      ${(!current.definition&&!current.mine&&!current.context)?'<div class="meta-row"><div class="val" style="color:var(--fg-dim)">Нет деталей. Можно отредактировать в коллекции.</div></div>':''}
+      <div class="hint">тап — обратно</div>
+    </div>`;
+  deck.appendChild(card);
+  attachSwipe(card);
+  updateCounter();
+}
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function attachSwipe(card){
+  let sx=0, sy=0, dx=0, dy=0, dragging=false, moved=false, startTime=0;
+  const good = card.querySelector('.badge-good'), bad = card.querySelector('.badge-bad');
+  const onDown = (e) => {
+    dragging=true; moved=false; startTime=Date.now();
+    const p = pt(e); sx=p.x; sy=p.y; dx=0; dy=0;
+    card.style.transition='none';
+  };
+  const onMove = (e) => {
+    if (!dragging) return;
+    const p = pt(e); dx = p.x - sx; dy = p.y - sy;
+    if (Math.abs(dx)>6 || Math.abs(dy)>6) moved=true;
+    const rot = dx/15;
+    card.style.transform = `translate(${dx}px, ${dy}px) rotate(${rot}deg)`;
+    good.style.opacity = Math.max(0, Math.min(1, dx/100));
+    bad.style.opacity  = Math.max(0, Math.min(1, -dx/100));
+  };
+  const onUp = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    card.style.transition = 'transform .35s ease, opacity .35s';
+    const w = window.innerWidth;
+    if (dx > 90){ swipeOut(card, +1); }
+    else if (dx < -90){ swipeOut(card, -1); }
+    else {
+      card.style.transform=''; good.style.opacity=0; bad.style.opacity=0;
+      if (!moved && Date.now()-startTime < 250) flip(card);
+    }
+  };
+  const pt = (e) => e.touches?.[0] ? {x:e.touches[0].clientX,y:e.touches[0].clientY} : {x:e.clientX,y:e.clientY};
+  card.addEventListener('touchstart', onDown, {passive:true});
+  card.addEventListener('touchmove', onMove, {passive:true});
+  card.addEventListener('touchend', onUp);
+  card.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+function flip(card){ card.classList.toggle('flipped'); SFX.flip(); vibrate(10); }
+function swipeOut(card, dir){
+  const w = window.innerWidth;
+  card.style.transform = `translate(${dir*w*1.4}px, ${dir*40}px) rotate(${dir*30}deg)`;
+  card.style.opacity = '0';
+  if (dir > 0){
+    SFX.good(); vibrate([12,30,12]);
+    Terms.put({...current, status:'learned'}).then(()=>Activity.bump());
+  } else {
+    SFX.bad(); vibrate(20);
+    queue.push(current);
+  }
+  setTimeout(()=>{ current = null; renderTopCard(); }, 320);
+}
+function finishedDeck(){
+  $('#deck').innerHTML = `<div class="empty" style="padding:60px 20px"><h3>🎉 Всё выучено!</h3><p>Отличная сессия.</p></div>`;
+  SFX.done(); vibrate([30,40,30,40,80]);
+  burstConfetti();
+  $('#counter').textContent = 'Готово';
+}
+
+/* ============ Confetti ============ */
+const cnv = $('#confetti'), cctx = cnv.getContext('2d');
+function sizeCanvas(){ cnv.width = innerWidth; cnv.height = innerHeight; }
+sizeCanvas(); addEventListener('resize', sizeCanvas);
+function burstConfetti(){
+  const colors=['#5eead4','#22d3ee','#fbbf24','#f87171','#a855f7','#34d399'];
+  const parts = Array.from({length:120}, () => ({
+    x: innerWidth/2, y: innerHeight*0.4,
+    vx: (Math.random()-.5)*10, vy: (Math.random()*-12)-4,
+    g: 0.4, size: Math.random()*6+4, color: colors[Math.floor(Math.random()*colors.length)],
+    rot: Math.random()*Math.PI, vr: (Math.random()-.5)*0.3, life: 0
+  }));
+  let raf;
+  const loop = () => {
+    cctx.clearRect(0,0,cnv.width,cnv.height);
+    let alive=false;
+    parts.forEach(p=>{
+      p.vy += p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life++;
+      if (p.y < cnv.height + 50) alive = true;
+      cctx.save(); cctx.translate(p.x,p.y); cctx.rotate(p.rot);
+      cctx.fillStyle = p.color; cctx.fillRect(-p.size/2,-p.size/2,p.size,p.size*0.6);
+      cctx.restore();
+    });
+    if (alive && parts[0].life < 220) raf = requestAnimationFrame(loop);
+    else cctx.clearRect(0,0,cnv.width,cnv.height);
+  };
+  loop();
+}
+
+/* ============ COLLECTION ============ */
+let filterStatus='all', filterSource='', searchQ='';
+$('#search').addEventListener('input', e => { searchQ = e.target.value.toLowerCase(); renderCollection(); });
+$$('#filters .chip').forEach(c => c.addEventListener('click', () => {
+  $$('#filters .chip').forEach(x=>x.classList.remove('active'));
+  c.classList.add('active'); filterStatus = c.dataset.f; renderCollection();
+}));
+async function renderCollection(){
+  const all = await Terms.all();
+  // source chips
+  const sources = [...new Set(all.map(t=>t.source).filter(Boolean))];
+  const sf = $('#srcFilters');
+  sf.innerHTML = '';
+  if (sources.length){
+    const allChip = document.createElement('div');
+    allChip.className = 'chip' + (filterSource===''?' active':''); allChip.textContent = 'Все источники';
+    allChip.onclick = () => { filterSource=''; renderCollection(); };
+    sf.appendChild(allChip);
+    sources.forEach(s => {
+      const c = document.createElement('div');
+      c.className = 'chip' + (filterSource===s?' active':''); c.textContent = s;
+      c.onclick = () => { filterSource = filterSource===s?'':s; renderCollection(); };
+      sf.appendChild(c);
+    });
+  }
+  let list = all;
+  if (filterStatus !== 'all') list = list.filter(t=>t.status===filterStatus);
+  if (filterSource) list = list.filter(t=>t.source===filterSource);
+  if (searchQ) list = list.filter(t => (t.term+' '+t.definition+' '+t.mine+' '+t.context).toLowerCase().includes(searchQ));
+  list.sort((a,b)=>a.term.localeCompare(b.term,'ru'));
+
+  const wrap = $('#list'); wrap.innerHTML='';
+  $('#collEmpty').style.display = list.length ? 'none' : 'block';
+  list.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'item';
+    el.innerHTML = `
+      <div class="dot ${t.status}"></div>
+      <div class="body">
+        <div class="term">${escapeHtml(t.term)}</div>
+        ${t.definition?`<div class="def">${escapeHtml(t.definition)}</div>`:''}
+        ${t.source?`<div class="src">📚 ${escapeHtml(t.source)}</div>`:''}
+      </div>`;
+    el.onclick = () => openEdit(t);
+    wrap.appendChild(el);
+  });
+}
+
+/* ============ EDIT ============ */
+let editing = null;
+function openEdit(t){
+  editing = t;
+  $('#e-term').value = t.term||''; $('#e-def').value = t.definition||'';
+  $('#e-mine').value = t.mine||''; $('#e-ctx').value = t.context||'';
+  $('#e-src').value = t.source||''; $('#e-status').value = t.status||'learning';
+  $('#editModal').classList.add('show');
+}
+$('#btnCloseEdit').onclick = () => $('#editModal').classList.remove('show');
+$('#editModal').onclick = (e) => { if (e.target.id==='editModal') $('#editModal').classList.remove('show'); };
+$('#btnUpdate').onclick = async () => {
+  if (!editing) return;
+  const upd = { ...editing,
+    term: $('#e-term').value.trim()||editing.term,
+    definition: $('#e-def').value.trim(),
+    mine: $('#e-mine').value.trim(),
+    context: $('#e-ctx').value.trim(),
+    source: $('#e-src').value.trim(),
+    status: $('#e-status').value,
+  };
+  await Terms.put(upd);
+  $('#editModal').classList.remove('show'); toast('Обновлено'); renderCollection();
+};
+$('#btnDelete').onclick = async () => {
+  if (!editing) return;
+  if (!confirm('Удалить термин?')) return;
+  await Terms.del(editing.id);
+  $('#editModal').classList.remove('show'); toast('Удалено'); renderCollection();
+};
+
+/* ============ PROFILE ============ */
+async function renderProfile(){
+  const all = await Terms.all();
+  $('#stTotal').textContent = all.length;
+  $('#stLearned').textContent = all.filter(t=>t.status==='learned').length;
+  $('#stLearning').textContent = all.filter(t=>t.status==='learning').length;
+
+  const streak = await Activity.streak();
+  $('#streak').innerHTML = `${streak>=7?'🔥':'🌱'} ${streak} ${pluralDays(streak)}`;
+
+  const goal = await Settings.get('dailyGoal', 10);
+  $('#dailyGoal').value = goal;
+  const today = await Activity.todayCount();
+  const pct = Math.min(100, Math.round(today/goal*100));
+  $('#goalBar').style.width = pct+'%';
+  $('#goalText').textContent = `${today} из ${goal} сегодня`;
+
+  const theme = await Settings.get('theme','dark');
+  $$('#themes .theme-btn').forEach(b => b.classList.toggle('active', b.dataset.theme===theme));
+}
+function pluralDays(n){ const m=n%10, h=n%100; if(h>=11&&h<=14)return'дней'; if(m===1)return'день'; if(m>=2&&m<=4)return'дня'; return'дней'; }
+$('#dailyGoal').addEventListener('change', async e => {
+  const v = Math.max(1, Math.min(200, parseInt(e.target.value)||10));
+  e.target.value = v; await Settings.set('dailyGoal', v); renderProfile();
+});
+$$('#themes .theme-btn').forEach(b => b.onclick = async () => {
+  await applyTheme(b.dataset.theme); await Settings.set('theme', b.dataset.theme); renderProfile();
+});
+async function applyTheme(t){ document.documentElement.dataset.theme = t; }
+
+$('#btnRemind').onclick = () => {
+  const url = 'https://t.me/your_bot'; // TODO: заменить на реального бота
+  if (tg?.openTelegramLink) tg.openTelegramLink(url); else window.open(url, '_blank');
+};
+$('#btnShare').onclick = exportMarkdown;
+$('#tabFinish').onclick = async () => {
+  await exportMarkdown();
+  show('landing');
+};
+$('#btnImport').onclick = () => $('#fileInput').click();
+$('#fileInput').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const text = await f.text();
+  const items = parseMarkdown(text);
+  if (!items.length){ toast('Файл пуст или формат не распознан'); return; }
+  if (!confirm(`Импортировать ${items.length} терминов? Существующие не будут удалены.`)) return;
+  for (const it of items) await Terms.add(it);
+  toast(`Загружено: ${items.length}`); renderProfile(); renderCollection();
+  e.target.value = '';
+});
+$('#btnClear').onclick = async () => {
+  if (!confirm('Удалить ВСЕ термины?')) return;
+  if (!confirm('Точно? Это нельзя отменить.')) return;
+  await Terms.clear(); toast('Очищено'); renderProfile(); renderCollection();
+};
+
+/* ============ Markdown export/import ============ */
+function buildMarkdown(items){
+  const total = items.length;
+  const learned = items.filter(t=>t.status==='learned').length;
+  const learning = total - learned;
+  let md = `# Glossa — моя коллекция терминов\n> Всего: ${total} | Выучено: ${learned} | В изучении: ${learning}\n\n`;
+  for (const t of items){
+    md += `## ${t.term}\n`;
+    if (t.definition) md += `- 📖 Определение: ${oneLine(t.definition)}\n`;
+    if (t.mine)       md += `- ✍️ Моё определение: ${oneLine(t.mine)}\n`;
+    if (t.context)    md += `- 💬 Контекст: ${oneLine(t.context)}\n`;
+    if (t.source)     md += `- 📚 Источник: ${oneLine(t.source)}\n`;
+    md += `- ${t.status==='learned'?'🟢':'🟡'} Статус: ${t.status==='learned'?'выучено':'учу'}\n`;
+    md += `- 📅 Добавлено: ${t.addedAt || new Date().toISOString().slice(0,10)}\n\n`;
+  }
+  return md;
+}
+function oneLine(s){ return String(s).replace(/\r?\n/g,' ').trim(); }
+
+function parseMarkdown(text){
+  const lines = text.split(/\r?\n/);
+  const out = []; let cur = null;
+  const flush = () => { if (cur && cur.term) out.push(cur); cur = null; };
+  for (let line of lines){
+    const h2 = line.match(/^##\s+(.+?)\s*$/);
+    if (h2){ flush(); cur = { term:h2[1].trim(), definition:'', mine:'', context:'', source:'', status:'learning', addedAt:new Date().toISOString().slice(0,10) }; continue; }
+    if (!cur) continue;
+    const m = line.match(/^[-*]\s+(.+)$/);
+    if (!m) continue;
+    const content = m[1].trim();
+    const after = (label) => content.split(':').slice(1).join(':').trim();
+    if (/Определение:/i.test(content) && /✍️|Моё/i.test(content)) cur.mine = after();
+    else if (/Определение:/i.test(content)) cur.definition = after();
+    else if (/Контекст:/i.test(content)) cur.context = after();
+    else if (/Источник:/i.test(content)) cur.source = after();
+    else if (/Статус:/i.test(content)) cur.status = /выучено|learned|🟢/i.test(content) ? 'learned' : 'learning';
+    else if (/Добавлено:/i.test(content)) cur.addedAt = after();
+  }
+  flush();
+  return out;
+}
+
+async function exportMarkdown(){
+  const items = await Terms.all();
+  if (!items.length){ toast('Коллекция пуста'); return; }
+  const md = buildMarkdown(items);
+  const blob = new Blob([md], { type:'text/markdown;charset=utf-8' });
+  const file = new File([blob], 'glossa.md', { type:'text/markdown' });
+  if (navigator.canShare && navigator.canShare({ files:[file] })){
+    try { await navigator.share({ files:[file], title:'Glossa', text:'Моя коллекция терминов' }); return; } catch(e){}
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='glossa.md';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  toast('Файл сохранён');
+}
+
+/* ============ Boot ============ */
+(async function init(){
+  await openDB();
+  const theme = await Settings.get('theme','dark');
+  await applyTheme(theme);
+  if (!(await Settings.get('dailyGoal'))) await Settings.set('dailyGoal', 10);
+
+  if ('serviceWorker' in navigator){
+    try { await navigator.serviceWorker.register('/sw.js'); } catch(e){}
+  }
+})();
+</script>
+</body>
+</html>
