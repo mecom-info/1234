@@ -151,14 +151,23 @@
   <div class="land-actions">
     <button class="land-btn primary" id="btnStart">
       Начать работу
-      <small>Открыть коллекцию и продолжить изучение</small>
-    </button>
-    <button class="land-btn" id="btnFinish">
-      Закончить работу
-      <small>Сохранить glossa.md на устройство</small>
+      <small>Загрузить библиотеку или продолжить</small>
     </button>
   </div>
 </section>
+
+<!-- Start choice modal -->
+<div class="modal-overlay" id="startModal">
+  <div class="modal">
+    <h3>С чего начнём?</h3>
+    <p style="color:var(--fg-dim);margin-bottom:12px">Загрузите свою библиотеку из <code>.md</code> или продолжите работу.</p>
+    <button class="btn primary" id="btnStartImport" style="margin-bottom:8px">📥 Загрузить библиотеку (.md)</button>
+    <button class="btn" id="btnStartContinue" style="margin-bottom:8px">▶️ Продолжить</button>
+    <button class="btn" id="btnStartScratch" style="margin-bottom:8px">✨ Начать с нуля</button>
+    <button class="btn" id="btnStartCancel">Отмена</button>
+    <input type="file" id="startFileInput" accept=".md,.markdown,text/markdown,text/plain" style="display:none" />
+  </div>
+</div>
 
 <!-- APP -->
 <section id="app" class="screen">
@@ -397,15 +406,37 @@ window.switchTab = switchTab;
 $$('.tab').forEach(b=>b.addEventListener('click', ()=>switchTab(b.dataset.tab)));
 
 /* ============ Landing ============ */
-$('#btnStart').addEventListener('click', async () => {
+async function enterApp(tab='add'){
   show('app');
   const seen = await Settings.get('onboarded', false);
   if (!seen) showOnboarding();
-  switchTab('add');
+  switchTab(tab);
+}
+$('#btnStart').addEventListener('click', async () => {
+  const all = await Terms.all();
+  $('#btnStartContinue').style.display = all.length ? '' : 'none';
+  $('#startModal').classList.add('show');
 });
-$('#btnFinish').addEventListener('click', async () => {
-  await exportMarkdown();
-  show('landing');
+$('#btnStartCancel').onclick = () => $('#startModal').classList.remove('show');
+$('#startModal').onclick = (e) => { if (e.target.id==='startModal') $('#startModal').classList.remove('show'); };
+$('#btnStartContinue').onclick = () => { $('#startModal').classList.remove('show'); enterApp('collection'); };
+$('#btnStartScratch').onclick  = () => { $('#startModal').classList.remove('show'); enterApp('add'); };
+$('#btnStartImport').onclick   = () => $('#startFileInput').click();
+$('#startFileInput').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const text = await f.text();
+  const items = parseMarkdown(text);
+  e.target.value = '';
+  if (!items.length){ toast('Файл пуст или формат не распознан'); return; }
+  const existing = await Terms.all();
+  if (existing.length){
+    const replace = confirm(`В библиотеке уже ${existing.length} терминов.\n\nOK — заменить, Отмена — добавить к существующим.`);
+    if (replace) await Terms.clear();
+  }
+  for (const it of items) await Terms.add(it);
+  toast(`Загружено: ${items.length}`);
+  $('#startModal').classList.remove('show');
+  enterApp('collection');
 });
 
 /* ============ Onboarding ============ */
@@ -476,11 +507,13 @@ function renderTopCard(){
       <div class="hint">тап — перевернуть · свайп → знаю · ← потом</div>
     </div>
     <div class="face back">
+      <div class="term-big" style="font-size:22px;margin-bottom:8px">${escapeHtml(current.term)}</div>
       ${current.definition?`<div class="meta-row"><div class="lbl">📖 Определение</div><div class="val">${escapeHtml(current.definition)}</div></div>`:''}
       ${current.mine?`<div class="meta-row"><div class="lbl">✍️ Моё</div><div class="val">${escapeHtml(current.mine)}</div></div>`:''}
       ${current.context?`<div class="meta-row"><div class="lbl">💬 Контекст</div><div class="val">${escapeHtml(current.context)}</div></div>`:''}
       ${current.source?`<div class="meta-row"><div class="lbl">📚 Источник</div><div class="val">${escapeHtml(current.source)}</div></div>`:''}
-      ${(!current.definition&&!current.mine&&!current.context)?'<div class="meta-row"><div class="val" style="color:var(--fg-dim)">Нет деталей. Можно отредактировать в коллекции.</div></div>':''}
+      <div class="meta-row"><div class="lbl">${current.status==='learned'?'🟢':'🟡'} Статус</div><div class="val">${current.status==='learned'?'выучено':'учу'}</div></div>
+      ${current.addedAt?`<div class="meta-row"><div class="lbl">📅 Добавлено</div><div class="val">${escapeHtml(current.addedAt)}</div></div>`:''}
       <div class="hint">тап — обратно</div>
     </div>`;
   deck.appendChild(card);
